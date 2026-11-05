@@ -26,7 +26,7 @@ public class PriceLevelQueue{
         size++;
     }
 
-//par remoção de uma ordem da fila de ordens naquele nível de preço
+//para remoção de uma ordem da fila de ordens naquele nível de preço
 public void remove(Order order){
         if (order.prev != null) {
             order.prev.next = order.next;    //atualiza o next da order anterior

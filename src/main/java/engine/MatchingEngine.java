@@ -157,6 +157,11 @@ public class MatchingEngine {
     
     //recebe o comando DTO e gera a ordem (entidade)
     public List<Trade> submitOrder(OrderCommand cmd) {
+        if(cmd.price < 0 || cmd.initialQuantity <= 0 || cmd.quantity <= 0){
+            System.out.println("Erro: Não são aceitos valores negativos ou iguais a zero.");
+            return java.util.Collections.emptyList();  //retorna uma lista vazia para indicar que a ordem não foi processada, evita NullPointerException
+        }
+
         long startTime = System.nanoTime();
     
         metrics.MetricsRegistry.totalOrders.increment();
