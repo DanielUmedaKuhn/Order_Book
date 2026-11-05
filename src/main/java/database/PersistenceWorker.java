@@ -1,5 +1,6 @@
 package database;
 import java.util.concurrent.atomic.*;
+import java.util.concurrent.locks.LockSupport;
 import enums.OrderType;
 
 public class PersistenceWorker implements Runnable{   //thread de persistência para gravar ordens e trades no banco de dados
@@ -79,6 +80,9 @@ public class PersistenceWorker implements Runnable{   //thread de persistência 
     @Override
     public void run(){
         System.out.println("[DB-WORKER] - Thread de persistência iniciada.");
+
+        final int BATCH_LIMIT = 512;  //trigger para executar os batches de gravação no banco de dados quando atingir esse limite (metade do tamanho do ring buffer)
+        final long WAIT_TIME_NANOS = 1_000_000;  //1ms 
         while(true){
             long currentProducer = producer.get();
             long currentConsumer = consumer.get();
@@ -112,16 +116,22 @@ public class PersistenceWorker implements Runnable{   //thread de persistência 
                     
                     currentConsumer++;
                     batchCount++;
+
+                    if(batchCount >= BATCH_LIMIT){
+                        orderDAO.executeBatches();
+                        tradeDAO.executeBatches();
+                        batchCount = 0;  //zero o contador para o restante do lote
+                    }
                 }
 
                 consumer.set(currentConsumer);
 
-                if(batchCount > 0){
+                if(batchCount > 0){  //salva no disco o que sobrou do lote, caso a rede pare de enviar ordens
                         orderDAO.executeBatches();
                         tradeDAO.executeBatches();
                 }
             } else {
-                Thread.yield();
+                LockSupport.parkNanos(WAIT_TIME_NANOS);  //não é uma lock, é um comando para adormecer somente a thread atual por um tempo WAIT_TIME_NANOS, para evitar o busy waiting
             }
         }   
     }
