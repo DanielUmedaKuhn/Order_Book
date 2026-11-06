@@ -176,18 +176,25 @@ public class MatchingEngine {
         long oldBestAsk = getBestReferencePrice(book.asks);
 
         if (incoming.type == OrderType.PEGGED){
-            if((incoming.side == Side.BUY && oldBestBid == 0 || incoming.side == Side.SELL && oldBestAsk == 0)){
+            // >>> NOVO: preço de referência do lado da ordem (0 = não há ordem LIMIT nesse lado)
+            long reference = (incoming.side == Side.BUY) ? oldBestBid : oldBestAsk;
+
+            // >>> ALTERADO: só rejeita a pegged NOVA (preço 0, vinda do comando PEG) sem referência.
+            // Antes rejeitava também a que vinha de uma modificação, e a ordem sumia do livro.
+            if(reference == 0 && incoming.price == 0){
                 System.out.println("Erro: Ordem PEGGED rejeitada. Não há liquidez de referência no livro.");
                 returnOrder(incoming);  //devolve a ordem para a pool
                 return trades;          //aborta a execução e retorna uma lista vazia
             }
-            if (incoming.side == Side.BUY){
-                incoming.price = oldBestBid; 
-                peggedBids.add(incoming.id);
-            } else {
-                incoming.price = oldBestAsk; 
-                peggedAsks.add(incoming.id);
+
+            // >>> ALTERADO: com referência, reatrela ao topo; sem referência (veio de modificação),
+            // mantém o preço atual até o topo voltar a existir
+            if(reference != 0){
+                incoming.price = reference;
             }
+
+            
+            (incoming.side == Side.BUY ? peggedBids : peggedAsks).add(incoming.id);
         }
 
         dbWorker.enqueueOrder((byte) 0, incoming.id, incoming.price, incoming.getInitialQuantity(), incoming.getQuantity(), incoming.side == Side.BUY, incoming.type);  
@@ -257,7 +264,7 @@ public class MatchingEngine {
 
         book.removeOrderFromId(orderId); 
         
-        // Passa order.type
+        //passa order.type
         dbWorker.enqueueOrder((byte) 3, order.id, order.price, order.getInitialQuantity(), order.getQuantity(), order.side == Side.BUY, order.type);
         
         //ordem foi removida do livro, então volta para a pool
@@ -328,7 +335,7 @@ public class MatchingEngine {
                 incoming.reduceQuantity(matchQuantity);     
                 restingOrder.reduceQuantity(matchQuantity); 
 
-                // Passa restingOrder.type
+                //passa restingOrder.type
                 dbWorker.enqueueOrder((byte) 1, restingOrder.id, restingOrder.price, restingOrder.getInitialQuantity(), restingOrder.getQuantity(), restingOrder.side == Side.BUY, restingOrder.type);
                 
                 if(restingOrder.getQuantity() == 0){
@@ -368,13 +375,16 @@ public class MatchingEngine {
 
         enums.Side originalSide = originalOrder.getSide();
         enums.OrderType originalType = originalOrder.getType();
+        long originalPrice = originalOrder.price;   
 
         boolean canceled = cancelOrder(oldOrderId);  
         if(!canceled){
             return false;
         }
 
-        enqueue(newOrderId, newPrice, newQuantity, newQuantity, originalSide, originalType);   
+        long priceToSend = (originalType == enums.OrderType.PEGGED) ? originalPrice : newPrice;
+        enqueue(newOrderId, priceToSend, newQuantity, newQuantity, originalSide, originalType);   
+
         return true;
     }  
 }
