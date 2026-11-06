@@ -109,7 +109,7 @@ public class TradingServer {
             }
         }
         catch(IOException e){
-            System.out.println("[SERVER] Conexão encerrado com o cliente.");
+            System.out.println("[SERVER] Conexão encerrada com o cliente.");
         }
     }
 }

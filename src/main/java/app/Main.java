@@ -18,6 +18,6 @@ public class Main {
         metricsThread.setDaemon(true);
         metricsThread.start();
 
-        server.start();  //programa ficará rodando até ser parado manualmente (CTRL+C)
+        server.start();  //programa ficará rodando até ser parado manualmente 
     }
 }

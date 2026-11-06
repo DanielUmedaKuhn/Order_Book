@@ -14,6 +14,9 @@ public class OrderDAO {
     private Connection conn;
     private PreparedStatement saveStmt;
     private PreparedStatement updateStmt;
+    // >>> NOVO: cancelamento vai no MESMO lote e na MESMA conexão dos outros comandos
+    private PreparedStatement cancelStmt;
+    // <<< NOVO
 
     public OrderDAO(){
         try{
@@ -32,6 +35,14 @@ public class OrderDAO {
                     SET price = ?,quantity = ?, status = ?
                     WHERE id = ?
                     """);
+
+            // >>> NOVO: comando para cancelar ordens (grava também o saldo que sobrou)
+            cancelStmt = conn.prepareStatement("""
+                    UPDATE orders
+                    SET quantity = ?, status = 'CANCELLED'
+                    WHERE id = ?
+                    """);
+            // <<< NOVO
         } catch (SQLException e){
             System.err.println("DAO - Erro ao inicializar PreparedStatements: " + e.getMessage());
         }
@@ -58,11 +69,18 @@ public class OrderDAO {
         updateStmt.addBatch();
     }
 
+    public void addCancelBatch(long id, int remainingQty) throws SQLException{
+        cancelStmt.setInt(1, remainingQty);
+        cancelStmt.setLong(2, id);
+        cancelStmt.addBatch();
+    }
+
     //executa no banco
     public void executeBatches(){
         try{
             saveStmt.executeBatch();
             updateStmt.executeBatch();
+            cancelStmt.executeBatch();   
             conn.commit();
         } catch (SQLException e){
             System.err.println("DAO - Erro ao executar batches: " + e.getMessage());
@@ -97,17 +115,4 @@ public class OrderDAO {
 
         return openOrders;
     }
-
-    //marca uma ordem como cancelada
-    public void cancelOrder(long orderId){
-        String sql = "UPDATE orders SET status = 'CANCELLED' WHERE id = ?";
-        try(Connection conn = DatabaseConfig.getConnection();   //conecta ao banco de dados
-            PreparedStatement pstmt = conn.prepareStatement(sql)){
-                pstmt.setLong(1, orderId);   //seta o id da ordem
-                pstmt.executeUpdate();
-        } catch (SQLException e){
-                System.err.println("DAO - Erro ao marcar  ordem " + orderId + " como cancelada: " + e.getMessage());
-        }
-    }
 }
-
